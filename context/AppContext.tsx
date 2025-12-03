@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AppState, Priority, Project, Task, UserSettings, LogEntry, AppContextType } from '../types';
+import { AppState, Priority, Project, Task, UserSettings, LogEntry, AppContextType, Section } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { playNotification } from '../utils/sound';
 
@@ -119,6 +119,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>(defaultProjects);
+  const [sections, setSections] = useState<Section[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   
   // Initialize user state lazily to detect system theme preference
@@ -143,12 +144,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const loadedTasks = localStorage.getItem('zentask-tasks');
     const loadedProjects = localStorage.getItem('zentask-projects');
+    const loadedSections = localStorage.getItem('zentask-sections');
     const loadedLogs = localStorage.getItem('zentask-logs');
     
     // User is loaded via lazy init in useState above
 
     if (loadedProjects) {
         setProjects(JSON.parse(loadedProjects));
+    }
+
+    if (loadedSections) {
+        setSections(JSON.parse(loadedSections));
     }
 
     if (loadedTasks) {
@@ -174,6 +180,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('zentask-projects', JSON.stringify(projects));
   }, [projects]);
+
+  useEffect(() => {
+    localStorage.setItem('zentask-sections', JSON.stringify(sections));
+  }, [sections]);
 
   useEffect(() => {
     localStorage.setItem('zentask-logs', JSON.stringify(logs));
@@ -233,9 +243,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(prev => ({ ...prev, theme }));
   };
 
-  const addTask = (title: string, workingDate?: string, deadlineDate?: string) => {
+  const addTask = (title: string, workingDate?: string, deadlineDate?: string, sectionId?: string) => {
     const isProjectView = projects.some(p => p.id === activeFilter);
     const targetProjectId = isProjectView ? activeFilter : 'inbox';
+
+    // Calculate next order in the target section
+    const relevantTasks = tasks.filter(t => t.projectId === targetProjectId && t.sectionId === sectionId);
+    const maxOrder = relevantTasks.length > 0 ? Math.max(...relevantTasks.map(t => t.order)) : -1;
 
     const newTask: Task = {
       id: uuidv4(),
@@ -243,9 +257,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isCompleted: false,
       priority: Priority.MEDIUM,
       projectId: targetProjectId,
+      sectionId: sectionId,
       createdAt: Date.now(),
       notes: '',
-      order: tasks.length,
+      order: maxOrder + 1,
       workingDate,
       deadlineDate,
     };
@@ -273,6 +288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
+  // Legacy simple reorder for flat lists (still used in non-section views if needed, though we will move to moveTask)
   const reorderTasks = (startIndex: number, endIndex: number) => {
     const result = [...tasks];
     const [removed] = result.splice(startIndex, 1);
@@ -280,6 +296,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     result.splice(endIndex, 0, removed);
     const reordered = result.map((t, idx) => ({ ...t, order: idx }));
     setTasks(reordered);
+  };
+
+  // New robust mover function for sections and lists
+  const moveTask = (taskId: string, targetSectionId: string | undefined, newIndex: number) => {
+    setTasks(prev => {
+        const taskToMove = prev.find(t => t.id === taskId);
+        if (!taskToMove) return prev;
+
+        // Current view tasks (in the same project)
+        // We only care about reordering relative to other tasks in the SAME destination context
+        // Context = Project + Section
+        
+        // 1. Remove task from current list
+        let newTasks = prev.filter(t => t.id !== taskId);
+
+        // 2. Identify target peers (Tasks in the same project and target section)
+        // Note: projectId shouldn't change here usually, unless dragging to sidebar, but this function handles section moves primarily.
+        // If we want to change project, we should update task.projectId before calling this or inside this.
+        // For now assume Project ID is constant or provided? 
+        // Actually, dragging between sections implies same project.
+        
+        const peers = newTasks.filter(t => 
+            t.projectId === taskToMove.projectId && 
+            t.sectionId === targetSectionId && 
+            !t.isCompleted
+        ).sort((a, b) => a.order - b.order);
+
+        // 3. Insert at new index
+        peers.splice(newIndex, 0, { ...taskToMove, sectionId: targetSectionId });
+
+        // 4. Re-calculate orders for these peers
+        const updatedPeers = peers.map((t, index) => ({ ...t, order: index }));
+
+        // 5. Merge back into the main list
+        // Remove old versions of peers from newTasks, then add updatedPeers
+        const peerIds = new Set(updatedPeers.map(t => t.id));
+        newTasks = newTasks.filter(t => !peerIds.has(t.id));
+        
+        return [...newTasks, ...updatedPeers];
+    });
   };
 
   const addProject = (name: string) => {
@@ -299,8 +355,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteProject = (id: string) => {
     setProjects(prev => prev.filter(p => p.id !== id));
-    setTasks(prev => prev.map(t => t.projectId === id ? { ...t, projectId: 'inbox' } : t));
+    // Also delete sections for this project
+    setSections(prev => prev.filter(s => s.projectId !== id));
+    // Move tasks to Inbox
+    setTasks(prev => prev.map(t => t.projectId === id ? { ...t, projectId: 'inbox', sectionId: undefined } : t));
     if (activeFilter === id) setActiveFilter('inbox');
+  };
+
+  const addSection = (projectId: string, title: string) => {
+      const projectSections = sections.filter(s => s.projectId === projectId);
+      const maxOrder = projectSections.length > 0 ? Math.max(...projectSections.map(s => s.order)) : -1;
+      
+      const newSection: Section = {
+          id: uuidv4(),
+          projectId,
+          title,
+          order: maxOrder + 1
+      };
+      setSections(prev => [...prev, newSection]);
+  };
+
+  const updateSection = (id: string, updates: Partial<Section>) => {
+      setSections(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteSection = (id: string) => {
+      // When deleting a section, move its tasks to undefined section (top of list)
+      setTasks(prev => prev.map(t => t.sectionId === id ? { ...t, sectionId: undefined } : t));
+      setSections(prev => prev.filter(s => s.id !== id));
   };
 
   const resetData = () => {
@@ -310,10 +392,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      tasks, projects, logs, user, activeFilter, priorityFilter,
+      tasks, projects, sections, logs, user, activeFilter, priorityFilter,
       setUserName, setTheme, toggleTaskCompletion, addTask, deleteTask,
-      updateTask, reorderTasks, addProject, updateProject, setActiveFilter, setPriorityFilter,
-      deleteProject, resetData
+      updateTask, reorderTasks, moveTask, addProject, updateProject, setActiveFilter, setPriorityFilter,
+      deleteProject, addSection, updateSection, deleteSection, resetData
     }}>
       {children}
     </AppContext.Provider>

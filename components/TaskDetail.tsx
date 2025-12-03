@@ -3,6 +3,7 @@ import { Task, Priority } from '../types';
 import { X, Calendar, Flag, Trash2, CheckSquare, List, Type, Folder, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { format } from 'date-fns';
+import DatePickerModal from './DatePickerModal';
 
 interface TaskDetailProps {
   task: Task;
@@ -13,6 +14,10 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
   const { updateTask, deleteTask, projects } = useApp();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  
+  // Date Picker States
+  const [showDoDatePicker, setShowDoDatePicker] = useState(false);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
 
   const handlePriorityChange = (p: Priority) => {
     updateTask(task.id, { priority: p });
@@ -62,15 +67,15 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
     }, 0);
   };
 
-  const formatDateForInput = (dateStr?: string) => {
-    if (!dateStr) return '';
-    return dateStr.split('T')[0];
-  };
-
   const formatDateDisplay = (dateStr?: string) => {
     if (!dateStr) return null;
     try {
-        return format(new Date(dateStr), 'MMM d, yyyy');
+        // If has time (not 00:00), show it
+        const d = new Date(dateStr);
+        if (d.getHours() !== 0 || d.getMinutes() !== 0) {
+            return format(d, 'MMM d, h:mm a');
+        }
+        return format(d, 'MMM d, yyyy');
     } catch {
         return null;
     }
@@ -227,37 +232,23 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
                         <div className="w-6 flex justify-center text-gray-400 mt-2"><Calendar size={16} /></div>
                         <div className="flex-1 flex gap-3">
                         {/* Do Date */}
-                        <div className="flex-1 group/date">
-                            <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1">Do Date</label>
-                            <div className="relative w-full bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md transition-colors overflow-hidden h-9 flex items-center">
+                        <div className="flex-1 group/date" onClick={() => setShowDoDatePicker(true)}>
+                            <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1 cursor-pointer">Do Date</label>
+                            <div className="relative w-full bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md transition-colors overflow-hidden h-9 flex items-center cursor-pointer">
                                 <span className={`flex-1 px-2 text-sm truncate ${!task.workingDate ? 'text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}>
                                     {formatDateDisplay(task.workingDate) || "Set date"}
                                 </span>
                                 <Calendar size={14} className="mr-2 text-gray-400 opacity-60 group-hover/date:opacity-100 transition-opacity" />
-                                <input 
-                                    type="date" 
-                                    value={formatDateForInput(task.workingDate)}
-                                    onChange={(e) => updateTask(task.id, { workingDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onClick={(e) => { try{e.currentTarget.showPicker()}catch(e){} }}
-                                />
                             </div>
                         </div>
                         {/* Deadline */}
-                        <div className="flex-1 group/date">
-                            <label className="block text-[10px] uppercase font-bold text-red-400 mb-1 ml-1">Deadline</label>
-                            <div className="relative w-full bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-md transition-colors overflow-hidden h-9 flex items-center">
+                        <div className="flex-1 group/date" onClick={() => setShowDeadlinePicker(true)}>
+                            <label className="block text-[10px] uppercase font-bold text-red-400 mb-1 ml-1 cursor-pointer">Deadline</label>
+                            <div className="relative w-full bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-md transition-colors overflow-hidden h-9 flex items-center cursor-pointer">
                                 <span className={`flex-1 px-2 text-sm truncate ${!task.deadlineDate ? 'text-red-300' : 'text-gray-700 dark:text-gray-200'}`}>
                                     {formatDateDisplay(task.deadlineDate) || "Set deadline"}
                                 </span>
                                 <Calendar size={14} className="mr-2 text-red-300 opacity-60 group-hover/date:opacity-100 transition-opacity" />
-                                <input 
-                                    type="date" 
-                                    value={formatDateForInput(task.deadlineDate)}
-                                    onChange={(e) => updateTask(task.id, { deadlineDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onClick={(e) => { try{e.currentTarget.showPicker()}catch(e){} }}
-                                />
                             </div>
                         </div>
                         </div>
@@ -325,6 +316,23 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
                 </div>
             </div>
         </div>
+
+        {/* Date Picker Modals */}
+        <DatePickerModal 
+            isOpen={showDoDatePicker}
+            onClose={() => setShowDoDatePicker(false)}
+            value={task.workingDate}
+            initialRepeat={task.repeat}
+            onChange={(d, r) => updateTask(task.id, { workingDate: d, repeat: r })}
+        />
+        <DatePickerModal 
+            isOpen={showDeadlinePicker}
+            onClose={() => setShowDeadlinePicker(false)}
+            value={task.deadlineDate}
+            // Deadline usually doesn't have separate repeat from the main task loop, 
+            // but we can allow it or just sync it. For now, let's just set the date.
+            onChange={(d) => updateTask(task.id, { deadlineDate: d })}
+        />
     </div>
     </>
   );

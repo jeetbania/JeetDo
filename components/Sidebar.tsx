@@ -4,7 +4,7 @@ import {
   Inbox, Calendar, CheckCircle, Settings, 
   Plus, Moon, Sun, LogOut, Check, Trophy 
 } from 'lucide-react';
-import { isToday, startOfWeek, isAfter } from 'date-fns';
+import { isToday, isAfter } from 'date-fns';
 import confetti from 'canvas-confetti';
 import { playSuccess } from '../utils/sound';
 import { Droppable } from '@hello-pangea/dnd';
@@ -28,7 +28,17 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
       return isToday(new Date(t.deadlineDate));
   }).length;
 
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  // Manually calculate start of week (Monday) to avoid date-fns import error
+  const getStartOfWeek = () => {
+      const d = new Date();
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+      d.setDate(diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+  };
+  const weekStart = getStartOfWeek();
+
   const completedThisWeek = logs
     .filter(log => log.action === 'complete' && isAfter(log.timestamp, weekStart))
     .map(log => log.taskTitle);

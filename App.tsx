@@ -8,7 +8,7 @@ import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { playPop } from './utils/sound';
 
 const MainLayout: React.FC = () => {
-  const { user, tasks, activeFilter, projects, reorderTasks, updateTask } = useApp();
+  const { user, updateTask, moveTask } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Close sidebar on route change (filter change) on mobile
@@ -27,35 +27,13 @@ const MainLayout: React.FC = () => {
 
     if (!destination) return;
 
-    // Case 1: Reordering within the list
-    if (source.droppableId === 'tasks-list' && destination.droppableId === 'tasks-list') {
-        // Find indices in the global list
-        // Note: This naive index implementation assumes the filtered view matches the source indices passed by dnd.
-        // For strict correctness with filters, we would find the task object and re-insert it.
-        // However, standard dnd implementation usually requires managing the sorted list.
-        // Here we will use the index from the filtered list in TaskList to reorder global tasks is tricky.
-        // A simplified approach for this snippet: We let TaskList handle reordering internally if possible, 
-        // OR we map the filtered indices back to global indices.
+    // Case 1: Reordering within lists/sections or moving between sections
+    // Droppable IDs for task lists are formatted as "section-[ID]" or "section-undefined"
+    if (source.droppableId.startsWith('section-') && destination.droppableId.startsWith('section-')) {
+        const targetSectionIdString = destination.droppableId.replace('section-', '');
+        const targetSectionId = targetSectionIdString === 'undefined' ? undefined : targetSectionIdString;
         
-        // Since we lifted state, we need to replicate the filter logic or pass the reorder responsibility back.
-        // To simplify for this specific request: We will assume reordering happens via the context method which expects global indices.
-        // See TaskList.tsx implementation where we calculate global indices.
-        
-        // Actually, to avoid complexity here, we can pass a handler down to TaskList or handle it here if we reconstruct the list.
-        // BETTER APPROACH: Only handle "Move to Project" here. Reordering within 'tasks-list' can be ignored here 
-        // and handled in TaskList if we didn't remove DragDropContext there? 
-        // No, DragDropContext must be top level. 
-        
-        // Let's implement global index finding:
-        const currentList = getFilteredTasks();
-        const sourceTask = currentList[source.index];
-        const destTask = currentList[destination.index];
-        
-        if (sourceTask && destTask) {
-             const globalSourceIndex = tasks.findIndex(t => t.id === sourceTask.id);
-             const globalDestIndex = tasks.findIndex(t => t.id === destTask.id);
-             reorderTasks(globalSourceIndex, globalDestIndex);
-        }
+        moveTask(draggableId, targetSectionId, destination.index);
         return;
     }
 
@@ -66,21 +44,10 @@ const MainLayout: React.FC = () => {
             : destination.droppableId.replace('project-', '');
         
         if (targetProjectId) {
-            updateTask(draggableId, { projectId: targetProjectId });
+            updateTask(draggableId, { projectId: targetProjectId, sectionId: undefined });
             playPop(); // Feedback sound
         }
     }
-  };
-
-  // Helper to reconstruct current view for index mapping
-  const getFilteredTasks = () => {
-      let result = tasks;
-      if (activeFilter === 'inbox') result = result.filter(t => !t.isCompleted);
-      else if (activeFilter === 'today') result = result.filter(t => !t.isCompleted && t.deadlineDate && new Date(t.deadlineDate).toDateString() === new Date().toDateString());
-      else if (activeFilter === 'upcoming') result = result.filter(t => !t.isCompleted && t.deadlineDate && new Date(t.deadlineDate) > new Date());
-      else if (activeFilter === 'completed') result = [];
-      else result = result.filter(t => !t.isCompleted && t.projectId === activeFilter);
-      return result.sort((a, b) => a.order - b.order);
   };
 
   if (!user.isOnboarded) {
