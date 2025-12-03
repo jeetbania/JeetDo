@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JeetDo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              // Override slate to use CSS variables
+              slate: {
+                50: 'rgb(var(--color-slate-50) / <alpha-value>)',
+                100: 'rgb(var(--color-slate-100) / <alpha-value>)',
+                200: 'rgb(var(--color-slate-200) / <alpha-value>)',
+                300: 'rgb(var(--color-slate-300) / <alpha-value>)',
+                400: 'rgb(var(--color-slate-400) / <alpha-value>)',
+                500: 'rgb(var(--color-slate-500) / <alpha-value>)',
+                600: 'rgb(var(--color-slate-600) / <alpha-value>)',
+                700: 'rgb(var(--color-slate-700) / <alpha-value>)',
+                800: 'rgb(var(--color-slate-800) / <alpha-value>)',
+                900: 'rgb(var(--color-slate-900) / <alpha-value>)',
+                950: 'rgb(var(--color-slate-950) / <alpha-value>)',
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.2s ease-out forwards',
+              'fade-in-up': 'fadeInUp 0.5s ease-out',
+              'slide-up': 'slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              'slide-left': 'slideLeft 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              'blob': "blob 7s infinite",
+              'shimmer': "shimmer 1.5s infinite"
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(100%)' },
+                '100%': { transform: 'translateY(0)' },
+              },
+              slideLeft: {
+                '0%': { transform: 'translateX(100%)' },
+                '100%': { transform: 'translateX(0)' },
+              },
+              blob: {
+                "0%": { transform: "translate(0px, 0px) scale(1)" },
+                "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+                "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+                "100%": { transform: "translate(0px, 0px) scale(1)" }
+              },
+              shimmer: {
+                "100%": { transform: "translateX(100%)" }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      
+      :root {
+        /* Default Slate Values (Tailwind Standard) */
+        --color-slate-50: 248 250 252;
+        --color-slate-100: 241 245 249;
+        --color-slate-200: 226 232 240;
+        --color-slate-300: 203 213 225;
+        --color-slate-400: 148 163 184;
+        --color-slate-500: 100 116 139;
+        --color-slate-600: 71 85 105;
+        --color-slate-700: 51 65 85;
+        --color-slate-800: 30 41 59;
+        --color-slate-900: 15 23 42;
+        --color-slate-950: 2 6 23;
+      }
+
+      .theme-black {
+        /* True Black Theme Overrides */
+        /* Backgrounds: 900 (Main), 800 (Cards/Sidebar), 950 (Darker) */
+        --color-slate-900: 0 0 0;        /* Pure Black */
+        --color-slate-800: 18 18 18;     /* Dark Gray (Material) */
+        --color-slate-950: 0 0 0;        /* Deepest */
+        
+        /* Borders and Separators */
+        --color-slate-700: 40 40 40;     /* Subtle Borders */
+        
+        /* Text Colors */
+        --color-slate-600: 160 160 160;  /* Secondary Text */
+        --color-slate-500: 110 110 110;  /* Muted Text */
+        --color-slate-400: 80 80 80;     /* Icons/Disabled */
+        
+        /* Light shades for contrast elements on dark bg */
+        --color-slate-300: 200 200 200;
+        --color-slate-200: 229 229 229;
+        --color-slate-100: 245 245 245;
+        --color-slate-50: 250 250 250;
+      }
+
+      /* Ensure native inputs (date picker) follow theme */
+      .dark {
+        color-scheme: dark;
+      }
+      
+      /* Custom Scrollbar for minimalistic look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1?dev",
+    "react/": "https://esm.sh/react@18.3.1&dev/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1&dev/",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react,react-dom",
+    "@hello-pangea/dnd": "https://esm.sh/@hello-pangea/dnd@17.0.0?external=react,react-dom",
+    "uuid": "https://esm.sh/uuid@11.0.3",
+    "date-fns": "https://esm.sh/date-fns@4.1.0",
+    "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.3"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 text-gray-900 transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>

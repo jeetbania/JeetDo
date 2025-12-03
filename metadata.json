@@ -1,0 +1,7 @@
+{
+  "name": "JeetDo",
+  "description": "A modern, minimalistic To-Do list application with focus on aesthetics and fluid interactions.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
