@@ -5,7 +5,8 @@ import { useApp } from '../context/AppContext';
 import { Task, Priority } from '../types';
 import TaskDetail from './TaskDetail';
 import DatePickerModal from './DatePickerModal';
-import { Plus, Filter, Calendar, Trash2, CheckCircle, PlusCircle, RotateCcw, FileText, Star, MoreHorizontal, Edit3, Type, Smile, X } from 'lucide-react';
+import CalendarView from './CalendarView';
+import { Plus, Filter, Calendar, Trash2, CheckCircle, PlusCircle, RotateCcw, FileText, Star, MoreHorizontal, Edit3, Type, Smile, X, Check } from 'lucide-react';
 import { playPop, playSuccess } from '../utils/sound';
 import { format, isToday, isFuture } from 'date-fns';
 
@@ -37,13 +38,14 @@ const DatePill: React.FC<{
       >
           {/* Visual Badge */}
           <div className={`
-             flex items-center justify-center px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors cursor-pointer
+             flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer border
              ${date 
-               ? 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300 group-hover/date-pill:bg-gray-200 dark:group-hover/date-pill:bg-slate-600' 
-               : 'text-transparent hover:text-gray-400'
+               ? 'bg-blue-50 border-blue-100 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40' 
+               : 'bg-transparent border-transparent text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800'
              }
           `}>
-             {display || (date ? "Invalid" : placeholder)}
+             <Calendar size={12} className={date ? "text-blue-500 dark:text-blue-400" : "text-gray-400"} />
+             <span>{display || (date ? "Invalid" : placeholder)}</span>
           </div>
       </div>
       <DatePickerModal 
@@ -84,21 +86,33 @@ const TaskList: React.FC = () => {
   const descInputRef = useRef<HTMLTextAreaElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
   const sectionInputRef = useRef<HTMLInputElement>(null);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Header Menu
       if (headerMenuRef.current && !headerMenuRef.current.contains(event.target as Node)) {
         setIsHeaderMenuOpen(false);
         setShowIconPicker(false);
       }
-      // Close section menus
+      // Section Menu
       if (activeSectionMenu && !(event.target as Element).closest('.section-menu-container')) {
           setActiveSectionMenu(null);
+      }
+      // Filter Menu
+      if (isFilterMenuOpen && 
+          filterMenuRef.current && 
+          !filterMenuRef.current.contains(event.target as Node) &&
+          filterButtonRef.current && 
+          !filterButtonRef.current.contains(event.target as Node)
+      ) {
+          setIsFilterMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeSectionMenu]);
+  }, [activeSectionMenu, isFilterMenuOpen]);
 
   useEffect(() => {
      if(isEditingTitle && titleInputRef.current) titleInputRef.current.focus();
@@ -136,7 +150,9 @@ const TaskList: React.FC = () => {
     if (activeFilter === 'inbox') relevantTasks = relevantTasks.filter(t => !t.isCompleted);
     else if (activeFilter === 'today') relevantTasks = relevantTasks.filter(t => !t.isCompleted && t.deadlineDate && isToday(new Date(t.deadlineDate)));
     else if (activeFilter === 'upcoming') relevantTasks = relevantTasks.filter(t => !t.isCompleted && t.deadlineDate && isFuture(new Date(t.deadlineDate)) && !isToday(new Date(t.deadlineDate)));
-    else if (activeFilter === 'completed') relevantTasks = []; 
+    else if (activeFilter === 'completed') relevantTasks = [];
+    else if (activeFilter === 'archive') relevantTasks = [];
+    else if (activeFilter === 'calendar') relevantTasks = []; // Handled by CalendarView 
     else relevantTasks = relevantTasks.filter(t => !t.isCompleted && t.projectId === activeFilter);
 
     if (priorityFilter) relevantTasks = relevantTasks.filter(t => t.priority === priorityFilter);
@@ -168,6 +184,13 @@ const TaskList: React.FC = () => {
     }
   };
 
+  const handleCreateTaskFromCalendar = (date: string) => {
+      // Create a task with the selected date
+      const newId = addTask("New Task", undefined, date);
+      // Open the detail view
+      setSelectedTaskId(newId);
+  }
+
   const handleAddSection = (e: React.FormEvent) => {
       e.preventDefault();
       if(addingSectionName.trim()) {
@@ -197,10 +220,11 @@ const TaskList: React.FC = () => {
         if (activeFilter === 'today') title = 'Today';
         if (activeFilter === 'upcoming') title = 'Upcoming';
         if (activeFilter === 'completed') title = 'Logbook';
+        if (activeFilter === 'archive') title = 'Archive';
 
         return (
             <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 tracking-tight">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 tracking-tight animate-in fade-in slide-in-from-left-2 duration-300">
                     {title}
                 </h1>
             </div>
@@ -208,7 +232,7 @@ const TaskList: React.FC = () => {
       }
 
       return (
-        <div className="relative group/header">
+        <div className="relative group/header animate-in fade-in slide-in-from-left-2 duration-300">
             <div className="flex items-center gap-2 mb-1">
                 {activeProject.icon && (
                     <span 
@@ -246,7 +270,7 @@ const TaskList: React.FC = () => {
                     </button>
 
                     {isHeaderMenuOpen && (
-                        <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-20 py-1 animate-in fade-in zoom-in-95">
+                        <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
                             <button 
                                 onClick={() => { setIsEditingTitle(true); setIsHeaderMenuOpen(false); }}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
@@ -269,7 +293,7 @@ const TaskList: React.FC = () => {
                     )}
 
                     {showIconPicker && (
-                         <div className="absolute left-0 top-full mt-1 p-2 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-30 animate-in fade-in zoom-in-95 grid grid-cols-5 gap-1 w-48">
+                         <div className="absolute left-0 top-full mt-1 p-2 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-30 animate-in fade-in zoom-in-95 duration-200 grid grid-cols-5 gap-1 w-48">
                             {['📊', '🏠', '🚀', '🎨', '🎓', '💼', '✈️', '🛒', '💡', '🔥', '⭐', '❤️', '✅', '📁', '📝'].map(icon => (
                                 <button
                                     key={icon}
@@ -331,8 +355,8 @@ const TaskList: React.FC = () => {
                     {...provided.dragHandleProps}
                     className={`
                         group flex items-start gap-3 py-2.5 bg-white dark:bg-slate-900 
-                        transition-all border-b border-transparent hover:border-gray-50 dark:hover:border-slate-800
-                        active:scale-[0.98] transform origin-center
+                        transition-all duration-200 border-b border-transparent hover:border-gray-50 dark:hover:border-slate-800
+                        active:scale-[0.99] transform origin-center ease-out
                         ${snapshot.isDragging ? 'shadow-lg rotate-1 z-10 rounded-lg' : ''}
                         ${task.isCompleted ? 'opacity-40' : ''}
                     `}
@@ -345,7 +369,7 @@ const TaskList: React.FC = () => {
                             onChange={() => handleToggle(task.id, task.isCompleted)}
                             className="peer appearance-none w-4 h-4 border border-gray-300 dark:border-slate-600 rounded-[4px] checked:bg-gray-500 checked:border-gray-500 transition-colors cursor-pointer"
                         />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 peer-checked:opacity-100 text-white">
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 peer-checked:opacity-100 text-white transition-opacity">
                             <CheckCircle size={10} fill="white" className="text-gray-500" />
                         </div>
                     </div>
@@ -381,6 +405,14 @@ const TaskList: React.FC = () => {
                                 {project.name}
                             </span>
                         )}
+
+                        {task.color && (
+                            <span 
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: task.color }}
+                                title="Color tag"
+                            ></span>
+                        )}
                     </div>
                 </div>
             )}
@@ -388,9 +420,85 @@ const TaskList: React.FC = () => {
       );
   };
 
+  if (activeFilter === 'calendar') {
+      return (
+        <div className="flex-1 h-full flex flex-col relative max-w-5xl mx-auto w-full">
+             <CalendarView tasks={tasks} onSelectTask={setSelectedTaskId} onCreateTask={handleCreateTaskFromCalendar} />
+             {selectedTask && (
+                <TaskDetail task={selectedTask} onClose={() => setSelectedTaskId(null)} />
+             )}
+        </div>
+      );
+  }
+
+  // --- Archive View ---
+  if (activeFilter === 'archive') {
+      const archivedTasks = tasks.filter(t => t.isCompleted);
+      // Group by Month Year
+      const tasksByMonth: Record<string, Task[]> = {};
+      archivedTasks.forEach(task => {
+          const date = task.completedAt ? new Date(task.completedAt) : new Date(task.createdAt); // Fallback to createdAt if old data
+          const key = format(date, 'MMMM yyyy');
+          if (!tasksByMonth[key]) tasksByMonth[key] = [];
+          tasksByMonth[key].push(task);
+      });
+
+      // Sort months descending (newest first)
+      const sortedMonths = Object.keys(tasksByMonth).sort((a, b) => {
+          return new Date(b).getTime() - new Date(a).getTime();
+      });
+
+      return (
+        <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full h-full animate-in fade-in duration-300">
+            <div className="px-6 py-8 md:pt-12">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                    Archive
+                    <span className="text-sm font-normal text-gray-400 ml-2 bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded-full">{archivedTasks.length}</span>
+                </h1>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 pb-20">
+                <div className="space-y-8">
+                    {sortedMonths.length === 0 ? (
+                        <div className="text-center text-gray-400 italic py-10">No archived tasks yet.</div>
+                    ) : (
+                        sortedMonths.map(month => (
+                            <div key={month}>
+                                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm py-2">{month}</h2>
+                                <div className="space-y-1">
+                                    {tasksByMonth[month]
+                                        .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+                                        .map(task => {
+                                            const project = projects.find(p => p.id === task.projectId);
+                                            return (
+                                                <div key={task.id} className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-lg group">
+                                                    <div className="text-gray-400 line-through text-sm flex-1 truncate">
+                                                        {task.title}
+                                                    </div>
+                                                    {project && (
+                                                        <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {project.name}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] text-gray-300 dark:text-gray-600 whitespace-nowrap">
+                                                        {task.completedAt ? format(task.completedAt, 'MMM d') : ''}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })
+                                    }
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+      );
+  }
+
   if (activeFilter === 'completed') {
       return (
-        <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full h-full">
+        <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full h-full animate-in fade-in duration-300">
             <div className="px-6 py-8 md:pt-12">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                     Logbook
@@ -439,21 +547,52 @@ const TaskList: React.FC = () => {
             <div className="relative pt-1">
                 {activeFilter !== 'presentation' && activeFilter !== 'inbox' && !projects.find(p=>p.id===activeFilter) ? null : (
                     <button 
+                        ref={filterButtonRef}
                         onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                        className={`p-2 rounded-lg transition-colors ${priorityFilter ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-400'}`}
+                        className={`p-2 rounded-xl transition-all duration-200 border border-transparent ${
+                            priorityFilter 
+                                ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' 
+                                : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                        }`}
                     >
-                        <Filter size={18} />
+                        <Filter size={20} />
                     </button>
                 )}
                 {isFilterMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-10 overflow-hidden animate-in fade-in zoom-in-95">
-                        <div className="p-1">
-                            <button onClick={() => setPriorityFilter(null)} className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 dark:hover:bg-slate-700 rounded text-gray-600 dark:text-gray-300">All</button>
-                            {[Priority.HIGH, Priority.MEDIUM, Priority.LOW].map(p => (
-                                <button key={p} onClick={() => setPriorityFilter(p)} className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-slate-700 rounded text-gray-600 dark:text-gray-300 flex items-center gap-2">
-                                    {p}
-                                </button>
-                            ))}
+                    <div 
+                        ref={filterMenuRef}
+                        className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 shadow-xl rounded-2xl border border-gray-100 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                    >
+                        <div className="p-1.5 space-y-0.5">
+                            <div className="px-3 py-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">Priority Filter</div>
+                            <button 
+                                onClick={() => { setPriorityFilter(null); setIsFilterMenuOpen(false); }} 
+                                className={`w-full text-left px-3 py-2 text-sm font-medium rounded-lg flex items-center justify-between transition-colors ${!priorityFilter ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-600 dark:text-gray-300'}`}
+                            >
+                                <span>All Tasks</span>
+                                {!priorityFilter && <Check size={14} className="text-blue-500" />}
+                            </button>
+                            
+                            {[Priority.HIGH, Priority.MEDIUM, Priority.LOW].map(p => {
+                                let colorClass = 'bg-gray-200';
+                                if(p === Priority.HIGH) colorClass = 'bg-red-500';
+                                if(p === Priority.MEDIUM) colorClass = 'bg-yellow-500';
+                                if(p === Priority.LOW) colorClass = 'bg-blue-500';
+
+                                return (
+                                    <button 
+                                        key={p} 
+                                        onClick={() => { setPriorityFilter(p); setIsFilterMenuOpen(false); }} 
+                                        className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors group ${priorityFilter === p ? 'bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white font-medium' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-600 dark:text-gray-300'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${colorClass}`}></span>
+                                            {p}
+                                        </div>
+                                        {priorityFilter === p && <Check size={14} className="text-gray-500" />}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -511,7 +650,7 @@ const TaskList: React.FC = () => {
                             </button>
 
                             {activeSectionMenu === section.id && (
-                                <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-20 py-1 animate-in fade-in zoom-in-95 origin-top-right">
+                                <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-gray-100 dark:border-slate-700 z-20 py-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                                     <button 
                                         onClick={() => { setEditingSectionId(section.id); setActiveSectionMenu(null); }}
                                         className="w-full text-left px-4 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
@@ -547,7 +686,7 @@ const TaskList: React.FC = () => {
             {supportsSections && (
                 <div className="mt-8 mb-12 group/section-btn">
                     {isAddingSection ? (
-                        <form onSubmit={handleAddSection} className="animate-in fade-in slide-in-from-top-2">
+                        <form onSubmit={handleAddSection} className="animate-in fade-in slide-in-from-top-2 duration-200">
                             <input 
                                 autoFocus
                                 type="text" 
@@ -567,7 +706,7 @@ const TaskList: React.FC = () => {
                                 text-gray-400 dark:text-gray-500 text-sm font-medium
                                 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800/50
                                 transition-all flex items-center justify-center gap-2
-                                opacity-60 hover:opacity-100
+                                opacity-60 hover:opacity-100 duration-200
                             "
                         >
                             <PlusCircle size={14} /> Add Section

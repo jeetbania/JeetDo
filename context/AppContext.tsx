@@ -48,7 +48,8 @@ const generateDummyTasks = (projectId: string): Task[] => {
       projectId: targetProject,
       createdAt: Date.now(),
       notes: "This is a minimalistic to-do app designed to help you focus.\n\n- [x] Clean design\n- [x] Fluid animations\n- [ ] You being productive!",
-      order: 0
+      order: 0,
+      color: '#3b82f6'
     },
     {
       id: uuidv4(),
@@ -58,7 +59,8 @@ const generateDummyTasks = (projectId: string): Task[] => {
       projectId: targetProject,
       createdAt: Date.now(),
       notes: "# Rich Notes\nYou can add details here using **markdown**.\n\n- create lists\n- add links\n- write thoughts",
-      order: 1
+      order: 1,
+      color: '#f59e0b'
     },
     {
       id: uuidv4(),
@@ -89,7 +91,8 @@ const generateDummyTasks = (projectId: string): Task[] => {
       createdAt: Date.now(),
       deadlineDate: getDaysFromNow(2),
       notes: "",
-      order: 4
+      order: 4,
+      color: '#10b981'
     },
     {
       id: uuidv4(),
@@ -243,16 +246,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(prev => ({ ...prev, theme }));
   };
 
-  const addTask = (title: string, workingDate?: string, deadlineDate?: string, sectionId?: string) => {
+  const addTask = (title: string, workingDate?: string, deadlineDate?: string, sectionId?: string): string => {
     const isProjectView = projects.some(p => p.id === activeFilter);
     const targetProjectId = isProjectView ? activeFilter : 'inbox';
+    const newId = uuidv4();
 
     // Calculate next order in the target section
     const relevantTasks = tasks.filter(t => t.projectId === targetProjectId && t.sectionId === sectionId);
     const maxOrder = relevantTasks.length > 0 ? Math.max(...relevantTasks.map(t => t.order)) : -1;
 
     const newTask: Task = {
-      id: uuidv4(),
+      id: newId,
       title,
       isCompleted: false,
       priority: Priority.MEDIUM,
@@ -263,15 +267,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       order: maxOrder + 1,
       workingDate,
       deadlineDate,
+      color: '#3b82f6' // Default blue
     };
     setTasks(prev => [...prev, newTask]);
     addLog('create', title);
+    return newId;
   };
 
   const toggleTaskCompletion = (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (task) {
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
+        const isNowCompleted = !task.isCompleted;
+        setTasks(prev => prev.map(t => t.id === id ? { 
+            ...t, 
+            isCompleted: isNowCompleted,
+            completedAt: isNowCompleted ? Date.now() : undefined 
+        } : t));
         addLog(task.isCompleted ? 'uncomplete' : 'complete', task.title);
     }
   };

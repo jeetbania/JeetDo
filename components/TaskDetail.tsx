@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Task, Priority } from '../types';
-import { X, Calendar, Flag, Trash2, CheckSquare, List, Type, Folder, Check } from 'lucide-react';
+import { X, Calendar, Flag, Trash2, CheckSquare, List, Type, Folder, Check, Palette } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { format } from 'date-fns';
 import DatePickerModal from './DatePickerModal';
@@ -10,6 +10,16 @@ interface TaskDetailProps {
   onClose: () => void;
 }
 
+const COLORS = [
+  '#3b82f6', // Blue
+  '#ef4444', // Red
+  '#10b981', // Green
+  '#f59e0b', // Yellow
+  '#8b5cf6', // Purple
+  '#ec4899', // Pink
+  '#6b7280', // Gray
+];
+
 const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
   const { updateTask, deleteTask, projects } = useApp();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -18,6 +28,10 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
   // Date Picker States
   const [showDoDatePicker, setShowDoDatePicker] = useState(false);
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Safety check if task became null/undefined during animation
+  if (!task) return null;
 
   const handlePriorityChange = (p: Priority) => {
     updateTask(task.id, { priority: p });
@@ -27,11 +41,14 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
     updateTask(task.id, { notes: e.target.value });
   };
 
-  const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      deleteTask(task.id);
-      onClose();
-    }
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Crucial: Stop event from bubbling to backdrop or other handlers
+    
+    // We remove confirm() to make interaction instantaneous and fix "not working" issues
+    // typically caused by focus loss or mobile wrapper issues with native alerts.
+    // In a production app, we would use a custom Toast/Modal for "Undo".
+    deleteTask(task.id);
+    onClose(); 
   };
 
   const insertMarkdown = (syntax: string, wrap = false) => {
@@ -171,7 +188,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
                 </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleDelete} className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors">
+                    <button 
+                        onClick={handleDelete}
+                        type="button" 
+                        className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors" 
+                        title="Delete Task"
+                    >
                         <Trash2 size={18} />
                     </button>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors text-gray-500 dark:text-gray-300">
@@ -271,6 +293,34 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onClose }) => {
                                     {p}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Color Picker */}
+                    <div className="flex items-center gap-4 group relative">
+                        <div className="w-6 flex justify-center text-gray-400"><Palette size={16} /></div>
+                        <div className="flex gap-2 relative">
+                             {/* Selected Color Button */}
+                             <button 
+                                onClick={() => setShowColorPicker(!showColorPicker)}
+                                className="flex items-center gap-2 px-3 py-1 bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full border border-gray-200 dark:border-slate-600 transition-colors"
+                             >
+                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: task.color || '#3b82f6' }}></div>
+                                 <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Tag Color</span>
+                             </button>
+
+                             {showColorPicker && (
+                                 <div className="absolute top-full left-0 mt-2 p-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 z-10 flex gap-2 animate-in fade-in zoom-in-95 duration-200">
+                                     {COLORS.map(color => (
+                                         <button
+                                            key={color}
+                                            onClick={() => { updateTask(task.id, { color }); setShowColorPicker(false); }}
+                                            className={`w-6 h-6 rounded-full hover:scale-110 transition-transform ${task.color === color ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-800 ring-blue-500' : ''}`}
+                                            style={{ backgroundColor: color }}
+                                         />
+                                     ))}
+                                 </div>
+                             )}
                         </div>
                     </div>
                 </div>

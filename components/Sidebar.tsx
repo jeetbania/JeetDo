@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Inbox, Calendar, CheckCircle, Settings, 
-  Plus, Moon, Sun, LogOut, Check, Trophy 
+  Plus, Moon, Sun, LogOut, Check, Trophy, LayoutGrid, Archive 
 } from 'lucide-react';
 import { isToday, isAfter } from 'date-fns';
 import confetti from 'canvas-confetti';
-import { playSuccess } from '../utils/sound';
+import { playCelebration } from '../utils/sound';
 import { Droppable } from '@hello-pangea/dnd';
 
 const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen, toggleOpen }) => {
@@ -18,6 +18,7 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
+  const [celebrationEmojis, setCelebrationEmojis] = useState<{id: number, left: number, animationDuration: number}[]>([]);
   const prevCountRef = useRef(0);
 
   const inboxCount = tasks.filter(t => !t.isCompleted).length;
@@ -28,7 +29,6 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
       return isToday(new Date(t.deadlineDate));
   }).length;
 
-  // Manually calculate start of week (Monday) to avoid date-fns import error
   const getStartOfWeek = () => {
       const d = new Date();
       const day = d.getDay();
@@ -49,20 +49,32 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
 
   useEffect(() => {
     if (uniqueCompletedCount >= weeklyGoal && prevCountRef.current < weeklyGoal && prevCountRef.current !== 0) {
-        playSuccess(0.2);
+        // Trigger Celebration Sound
+        playCelebration(0.2);
+        
+        // Trigger Hand Emoji Confetti
+        const emojis = [];
+        for (let i = 0; i < 20; i++) {
+            emojis.push({
+                id: i,
+                left: Math.random() * 100,
+                animationDuration: 2 + Math.random() * 2
+            });
+        }
+        setCelebrationEmojis(emojis);
+        
+        // Cleanup emojis after animation
+        setTimeout(() => setCelebrationEmojis([]), 4000);
+
+        // Also trigger standard confetti for extra pop
         const duration = 3000;
         const animationEnd = Date.now() + duration;
         const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 50 };
-
         const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
         const interval: any = setInterval(function() {
             const timeLeft = animationEnd - Date.now();
-
-            if (timeLeft <= 0) {
-                return clearInterval(interval);
-            }
-
+            if (timeLeft <= 0) return clearInterval(interval);
             const particleCount = 50 * (timeLeft / duration);
             confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
             confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
@@ -104,6 +116,31 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
         onClick={toggleOpen}
     ></div>
 
+    {/* Floating Hand Emojis Container */}
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+        {celebrationEmojis.map(emoji => (
+            <div 
+                key={emoji.id}
+                className="absolute text-4xl animate-float-up opacity-0"
+                style={{
+                    left: `${emoji.left}%`,
+                    bottom: '-50px',
+                    animationDuration: `${emoji.animationDuration}s`,
+                    animationName: 'floatUpAndFade'
+                }}
+            >
+                👏
+            </div>
+        ))}
+    </div>
+    <style>{`
+        @keyframes floatUpAndFade {
+            0% { transform: translateY(0) scale(0.5); opacity: 0; }
+            10% { opacity: 1; transform: translateY(-50px) scale(1); }
+            100% { transform: translateY(-100vh) scale(1.2); opacity: 0; }
+        }
+    `}</style>
+
     <aside className={`
       fixed md:static inset-y-0 left-0 z-30
       w-64 bg-gray-50/95 dark:bg-slate-900/95 backdrop-blur-sm border-r border-gray-200 dark:border-slate-800
@@ -124,7 +161,7 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
       </div>
 
       {showSettings && (
-          <div className="px-4 py-2 mb-2 bg-white dark:bg-slate-800 mx-4 rounded-lg shadow-sm border border-gray-100 dark:border-slate-700 animate-fade-in">
+          <div className="px-4 py-2 mb-2 bg-white dark:bg-slate-800 mx-4 rounded-lg shadow-sm border border-gray-100 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-200">
               <div className="text-xs font-semibold text-gray-400 mb-2 uppercase">Settings</div>
               <div className="mb-3">
                   <span className="text-sm text-gray-600 dark:text-gray-300 block mb-2">Theme</span>
@@ -178,6 +215,9 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
           <button onClick={() => setActiveFilter('upcoming')} className={navItemClass('upcoming', false)}>
             <div className="flex items-center gap-2"><Calendar size={18} className="text-red-500" /> Upcoming</div>
           </button>
+          <button onClick={() => setActiveFilter('calendar')} className={navItemClass('calendar', false)}>
+            <div className="flex items-center gap-2"><LayoutGrid size={18} className="text-indigo-500" /> Calendar</div>
+          </button>
           <button onClick={() => setActiveFilter('completed')} className={navItemClass('completed', false)}>
             <div className="flex items-center gap-2"><CheckCircle size={18} className="text-green-500" /> Logbook</div>
           </button>
@@ -191,7 +231,7 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
         </div>
 
         {isAddingProject && (
-            <form onSubmit={handleAddProject} className="mb-2 px-2">
+            <form onSubmit={handleAddProject} className="mb-2 px-2 animate-in slide-in-from-left-2 duration-200">
                 <input 
                     autoFocus
                     type="text" 
@@ -227,7 +267,7 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
             
             <button 
                 onClick={() => setIsAddingProject(true)}
-                className="w-full text-left px-3 py-2 text-sm text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800/50 rounded-lg border border-dashed border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800/50 hover:text-blue-500 dark:hover:text-blue-400 transition-all flex items-center gap-2 group mt-2"
+                className="w-full text-left px-3 py-2 text-sm text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800/50 rounded-lg border border-dashed border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800/50 hover:text-blue-500 dark:hover:text-blue-400 transition-all flex items-center gap-2 group mt-2 opacity-60 hover:opacity-100"
             >
                 <Plus size={14} className="group-hover:scale-110 transition-transform" />
                 <span>New Project</span>
@@ -264,6 +304,14 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
                 </div>
             </div>
          </div>
+
+        {/* Archive Button */}
+        <button 
+            onClick={() => setActiveFilter('archive')}
+            className={navItemClass('archive', false) + " mb-2"}
+        >
+            <div className="flex items-center gap-2"><Archive size={18} className="text-gray-500 dark:text-gray-400" /> Archive</div>
+        </button>
 
         <div className="text-xs text-gray-400 text-center">
             Hello, <span className="font-medium text-gray-600 dark:text-gray-300">{user.name}</span>

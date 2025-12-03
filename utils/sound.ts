@@ -60,6 +60,59 @@ export const playSuccess = (volume = 0.1) => {
   }
 };
 
+export const playCelebration = (volume = 0.15) => {
+  try {
+    const ctx = getContext();
+    
+    // Simulate applause/cheering with multiple noise bursts
+    const bufferSize = ctx.sampleRate * 2; // 2 seconds
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    // Create pink/brown noise
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (lastOut + (0.02 * white)) / 1.02;
+        lastOut = data[i];
+        data[i] *= 3.5; 
+    }
+
+    // Increased loop count and duration for longer applause
+    for (let i = 0; i < 40; i++) {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 500 + Math.random() * 1000;
+        filter.Q.value = 1;
+
+        const gainNode = ctx.createGain();
+        // Spread out the start times more for a longer effect
+        const start = ctx.currentTime + Math.random() * 0.6; 
+        const duration = 0.2 + Math.random() * 0.8;
+
+        gainNode.gain.setValueAtTime(0, start);
+        gainNode.gain.linearRampToValueAtTime(volume * (0.5 + Math.random()), start + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
+
+        source.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        source.start(start);
+        source.stop(start + duration + 0.1);
+    }
+    
+    // Add a cheering swell
+    playSuccess(volume);
+
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 export const playNotification = () => {
    try {
     const ctx = getContext();
