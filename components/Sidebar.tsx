@@ -204,7 +204,7 @@ const Sidebar: React.FC<{ isOpen: boolean, toggleOpen: () => void }> = ({ isOpen
                                 className={navItemClass(project.id, snapshot.isDraggingOver)}
                             >
                                 <div className="flex items-center gap-2 truncate">
-                                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }}></span>
+                                    <span className="flex-shrink-0 text-lg leading-none">{project.icon || '📁'}</span>
                                     <span className="truncate">{project.name}</span>
                                 </div>
                             </button>
